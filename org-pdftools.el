@@ -116,7 +116,7 @@ Can be one of highlight/underline/strikeout/squiggly."
   :type 'float)
 
 
-;; pdf://path::page++height_percent;;annot_id??isearch_string or @@occur_search_string
+;; pdf://path::page++height_percent;;edges(separated by :)??isearch_string or @@occur_search_string
 (defun org-pdftools-open-pdftools (link)
   "Internal function to open org-pdftools LINK."
   (let ((link-regexp
@@ -127,12 +127,12 @@ Can be one of highlight/underline/strikeout/squiggly."
            (let ((path (match-string 1 link))
                  (page (match-string 2 link))
                  (height (match-string 4 link))
-                 annot-id
+                 edges
                  search-string)
              (cond ((string-equal
                      (match-string 5 link)
                      ";;")
-                    (setq annot-id
+                    (setq edges
                           (match-string 6 link)))
                    ((string-equal
                      (match-string 5 link)
@@ -188,17 +188,26 @@ Can be one of highlight/underline/strikeout/squiggly."
                      (string-to-number height)
                      (cdr (pdf-view-image-size)))
                     (frame-char-height))))))
-             (when (and annot-id
-                        (not (string-empty-p annot-id)))
+             (when (and edges
+                        (not (string-empty-p edges)))
                (if (bound-and-true-p org-noter--session)
                    (org-noter--with-valid-session
-                    (with-selected-window
-                        (org-noter--get-doc-window)
+                    (with-selected-window (org-noter--get-doc-window)
                       (pdf-annot-show-annotation
-                       (pdf-info-getannot annot-id)
+                       (car (seq-filter (lambda (a)
+                                      (equal (alist-get 'edges a)
+                                             (mapcar
+                                              #'string-to-number
+                                              (split-string edges ":"))))
+                                    (pdf-info-getannots)))
                        t)))
                  (pdf-annot-show-annotation
-                  (pdf-info-getannot annot-id)
+                  (car (seq-filter (lambda (a)
+                                 (equal (alist-get 'edges a)
+                                        (mapcar
+                                         #'string-to-number
+                                         (split-string edges ":"))))
+                               (pdf-info-getannots)))
                   t)))
              (when (and search-string
                         (not (string-empty-p search-string)))
@@ -230,7 +239,7 @@ Can be one of highlight/underline/strikeout/squiggly."
           (with-current-buffer (current-buffer)
               (funcall org-pdftools-path-generator (buffer-file-name))))
          (page (pdf-view-current-page))
-         (annot-id (if (pdf-view-active-region-p)
+         (edges (if (pdf-view-active-region-p)
                        (pdf-annot-get-id
                         (funcall
                          org-pdftools-markup-pointer-function
@@ -264,12 +273,13 @@ Can be one of highlight/underline/strikeout/squiggly."
                              `((color . ,org-pdftools-free-pointer-color)
                                (opacity . ,org-pdftools-free-pointer-opacity))))
                          nil))))
-         (height (cond ((bound-and-true-p annot-id)
-                        (nth 1 (pdf-annot-get
-                                (pdf-info-getannot
-                                 annot-id
-                                 path)
-                                'edges)))
+         (edges (pdf-annot-get
+                 (pdf-info-getannot
+                  edges
+                  path)
+                 'edges))
+         (height (cond ((bound-and-true-p edges)
+                        (nth 1 edges))
                        (t
                         (/
                          (*
@@ -279,8 +289,8 @@ Can be one of highlight/underline/strikeout/squiggly."
                           (frame-char-height))
                          (float
                           (cdr (pdf-view-image-size)))))))
-         ;; pdf://path::page++height_percent;;annot_id\\|??search-string
-         (search-string (if (and (not annot-id)
+         ;; pdf://path::page++height_percent;;edges(separated by :)\\|??search-string
+         (search-string (if (and (not edges)
                                  org-pdftools-use-isearch-link)
                             isearch-string
                           ""))
@@ -292,19 +302,22 @@ Can be one of highlight/underline/strikeout/squiggly."
                 (number-to-string page)
                 "++"
                 (format "%.2f" height)
-                (if annot-id
-                    (concat
-                     ";;"
-                     (symbol-name annot-id))
-                  (if (not (string-empty-p search-string))
-                      (concat
-                       org-pdftools-search-string-separator
-                       (replace-regexp-in-string
-                        " "
-                        "%20"
-                        search-string))
-                    (message
-                     "   Reminder: You haven't performed a isearch!") "")))))
+                ";;"
+                (mapconcat #'number-to-string edges ":")
+                ;; (if edges
+                ;;     (concat
+                ;;      ";;"
+                ;;      (symbol-name edges))
+                ;;   (if (not (string-empty-p search-string))
+                ;;       (concat
+                ;;        org-pdftools-search-string-separator
+                ;;        (replace-regexp-in-string
+                ;;         " "
+                ;;         "%20"
+                ;;         search-string))
+                ;;     (message
+                ;;      "   Reminder: You haven't performed a isearch!") ""))
+                )))
     link))
 
 (defun org-pdftools-get-desc-default (file page &optional text)
@@ -418,7 +431,7 @@ and append it. ARG is passed to `org-link-complete-file'."
                     predicate)
             (funcall current-read-file-name-function
                      prompt dir default-filename mustmatch initial
-                     pdf-or-dir-p))))                     
+                     pdf-or-dir-p))))
     (concat
      (replace-regexp-in-string
       "^file:"
