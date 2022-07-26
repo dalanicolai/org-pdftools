@@ -403,17 +403,21 @@ To use this, `org-noter-pdftools-use-org-id' has to be t."
     "You have to enable `org-noter-pdftools-use-org-id'!")
   (org-noter--with-valid-session
    (pdf-annot-show-annotation a t)
-   (let ((id (symbol-name
-              (pdf-annot-get-id a))))
+   (let ((edges (string-join
+                 (mapcar #'number-to-string (car (pdf-annot-get-display-edges a)))
+                 ":")))
      (select-window
       (org-noter--get-notes-window))
-     (let ((exist-id (org-id-find-id-in-file
-                      (if org-noter-pdftools-use-unique-org-id
-                          (concat (org-noter--session-property-text session) "-" id)
-                        id)
-                      buffer-file-name)))
-       (if exist-id (goto-char (cdr exist-id))
-         nil)))))
+     (goto-char (point-min))
+     (search-forward edges))))
+;; (let ((exist-id ;; (org-id-find-id-in-file
+;;                 ;;  (if org-noter-pdftools-use-unique-org-id
+;;                 ;;      (concat (org-noter--session-property-text session) "-" id)
+;;                 ;;    id)
+;;                 ;;  buffer-file-name)
+;;                 ))
+;;   (if exist-id (goto-char (cdr exist-id))
+;;     nil)))))
 
 ;; TODO(nox): Implement interface for skeleton creation
 (defun org-noter-pdftools-create-skeleton ()
